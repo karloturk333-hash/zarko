@@ -56,6 +56,8 @@ Konvencija imena kolona u bazi:
 3. **Unakrsna provjera.** Vrijednost pozicije računa se dvaput: iz `walletImpact.currentValue` (T212 već sveo na valutu računa) i neovisno iz `quantity × currentPrice` u valuti instrumenta. Razlika se sprema u `check_delta_pct`; iznad 1 % ide upozorenje na stderr. Neprepoznat peni ovdje iskoči kao odstupanje od ~9900 %.
 4. **Tečaj se sprema uz snapshot** (`fx_rate_instrument` i `fx_rate_wallet` po poziciji, puni ECB set u `fx_rates_json`), pa se svaki izračun može rekonstruirati mjesecima kasnije.
 
+**Kako čitati `check_delta_pct`:** odstupanje od 0.1–0.5 % je normalno i raste s dobi tečaja — ECB objavljuje radnim danom, pa vikendom cijene idu žive uz tečaj od petka. Odstupanje je sistematično po valuti (EUR ~0 %, GBP ~0.1 %, USD ~0.5 % nakon dva dana). Ono što nije normalno je odstupanje reda veličine **9900 %** — to je neprepoznat minor unit, dakle faktor 100.
+
 Brze provjere:
 
 ```bash
