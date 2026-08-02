@@ -4,6 +4,80 @@ Jedan zapis po milestoneu ili featureu, isti dan. "Što je puklo" je najvrjednij
 
 ---
 
+## 2026-08-02 — M3: Hermes agent na Telegramu
+
+**Što sam gradio:**
+Hermes Agent na Hetzneru pod vlastitim unix korisnikom, spojen na Telegram s
+allowlistom, sa skillom koji mu daje pristup portfelju preko `report.py`.
+Uz to `report.py` — deterministički izvještaji iz baze, bez pristupa T212 ključu.
+
+**Što je puklo i zašto:**
+
+1. **Tri sata na autentikaciji, a rješenje je bila jedna prijava.** Hermes je vraćao
+   401 na svaki OAuth token. Rješenje: `claude` CLI je cijelo vrijeme bio instaliran
+   na serveru i trebalo ga je samo **prijaviti** (`claude /login`) — Hermes onda koristi
+   tu prijavu. Zalijepljeni setup-token nikad nije bio put.
+
+2. **Krivo dijagnosticirano tri puta zaredom, uvijek uvjerljivo.** Prvo "token je u
+   krivoj varijabli" (`ANTHROPIC_API_KEY` umjesto `ANTHROPIC_TOKEN`) — bio je prazan.
+   Pa "kvari se pri lijepljenju kroz ssh" — duljina se stvarno razlikovala za 2 znaka,
+   ali to je bio izvedeni zapis, ne token. Pa "Anthropic odbija token" — račun je bio
+   posve ispravan. Svaka hipoteza je imala dokaz koji ju je naizgled podupirao.
+
+3. **`curl | bash` guta interaktivni wizard.** Prva instalacija je išla pipeom, pa je
+   stdin bila skripta a ne terminal — wizard nije imao odakle čitati odgovore. Zato smo
+   ga preskočili s `--skip-setup` i onda ručno petljali oko tokena, što je i stvorilo
+   cijeli problem. Ispravno: `curl -o install.sh && bash install.sh`.
+
+4. **SSH alias je tiho pokazivao na krivi deploy key.** Server je već imao
+   `Host github.com` vezan na ključ drugog projekta uz `IdentitiesOnly yes`. Poruka je
+   bila "repository not found" — što navodi na krivi trag, jer zvuči kao da repo ne
+   postoji. Rješenje: zaseban alias `github-zarko`.
+
+5. **Agent je ponudio da prekrši vlastito pravilo.** Na prvom testu je uz točan
+   izvještaj dodao: "želiš li svježi `--save` da povučem nove podatke s Trading212?".
+   Skill je to zabranjivao, ali kao pravilo — model ga je pročitao kao preporuku.
+   Popravljeno tako da je zabrana eksplicitna i bez ponuđene alternative.
+
+**Što sada znam, a jučer nisam:**
+
+- **Kad alat javlja grešku autentikacije, prvo provjeri kako se on očekuje autentici-
+  rati, a ne kako mu ti pokušavaš dostaviti kredencijal.** Sve moje hipoteze bile su o
+  načinu dostave tokena; nijedna o tome treba li token uopće.
+- **Poruka o grešci je i podatak o tome što se promijenilo.** Prijelaz s
+  `invalid x-api-key` na `OAuth access token is invalid` značio je da je klasifikacija
+  konačno ispravna — napredak koji se lako previdi jer je i dalje 401.
+- **Izolacija unix korisnikom radi u oba smjera i vrijedi je imati.** `hermes` ne može
+  pročitati `/opt/zarko/.env` (T212 ključ), a `karlo` ne može pročitati Hermesov token.
+  Ništa od toga nije trebalo posebnu konfiguraciju osim ispravnih prava.
+- **Zabrana u promptu mora biti bez alternative.** "Ne radi X, nego predloži Y" model
+  čita kao poziv da ponudi X kao opciju. Trebalo je: X se ne spominje.
+- **Telegram ne renderira markdown tablice.** Lijepa tablica iz CLI-ja na mobitelu je
+  niz crtica.
+
+**Brojke:**
+
+- Trošak jednog upita "status portfelja": **0,079 USD** — 58.877 tokena ukupno,
+  5 API poziva, model Sonnet 5. Većina je cache write (25.080) na prvom pozivu.
+  Dnevni digest ≈ 2,4 USD mjesečno.
+- Agent je vratio **sve brojke točno**, doslovno iz `report.py`: ukupno 2.290,39 EUR,
+  8 pozicija, postoci do decimale. Nijedna izmišljena, nijedna preračunata.
+- Gateway: long polling, **nula novih otvorenih portova** prema van. `Linger=yes`,
+  dakle preživi odjavu i reboot.
+- Vrijeme: M1 (od nule do prvog snapshota) ≈ 1 h. M3 autentikacija ≈ 3 h.
+
+**Za intervju (2 rečenice):**
+Postavio sam LLM agenta koji odgovara na pitanja o portfelju preko Telegrama, uz
+podjelu gdje deterministički kod računa svaku brojku a model ih samo formulira —
+agent čita bazu isključivo kroz read-only sučelje i nema pristup brokerskim
+kredencijalima ni na razini operacijskog sustava, što je provjereno testom a ne
+pretpostavkom. Najkorisnija lekcija nije bila tehnička nego dijagnostička: tri sata
+sam rješavao krivi problem jer je svaka od tri uzastopne hipoteze imala dokaz koji ju
+je naizgled potvrđivao, a nijedna nije provjeravala osnovnu pretpostavku — kako alat
+uopće očekuje da se autentikacija obavi.
+
+---
+
 ## 2026-08-02 — M1: Prvi podatak (T212 → EUR → SQLite)
 
 **Što sam gradio:**
