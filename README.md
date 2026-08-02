@@ -82,19 +82,43 @@ Paginacija je cursor-based: `nextPagePath` dok ne bude `null`, `limit` max 50.
 
 ## Deploy
 
-API ključ je IP-lockan na server, pa se testira **na serveru**, ne lokalno:
+API ključ je IP-lockan na server (`46.62.233.229`), pa se testira **na serveru**, ne lokalno.
 
 ```bash
-./deploy.sh user@46.62.233.229
+cd ~/zarko && git pull
 ```
 
-Skripta rsynca kod i pokrene testove gore. `.env` i `portfolio.db` su izuzeti — secret se kreira na serveru i nikad ne putuje s razvojnog stroja, a baza na serveru je mjerodavna i ne gazi se lokalnom.
+### SSH alias — obavezno
 
-Prvi put, na serveru:
+Server ima u `~/.ssh/config` unos `Host github.com` koji pokazuje na deploy key *drugog* projekta, uz `IdentitiesOnly yes`. Deploy key vrijedi samo za jedan repo, pa bi git za ovaj repo koristio krivi ključ i javio "repository not found". Zato ovaj repo ima vlastiti alias:
+
+```
+Host github-zarko
+  HostName github.com
+  IdentityFile ~/.ssh/zarko_deploy
+  IdentitiesOnly yes
+```
+
+Klon ide preko aliasa, ne preko `github.com`:
 
 ```bash
-cp .env.example .env && nano .env && chmod 600 .env && python3 portfolio.py --check
+git clone git@github-zarko:karloturk333-hash/zarko.git ~/zarko
 ```
+
+Ključ na GitHubu je **read-only** deploy key `hetzner-zarko` (Settings → Deploy keys). Server može samo čitati.
+
+### Prvi put na serveru
+
+```bash
+cp .env.example .env && chmod 600 .env && nano .env
+python3 -m unittest test_fx && python3 portfolio.py --check
+```
+
+`.env` živi samo na serveru i nikad ne ide u git ni preko razvojnog stroja.
+
+### Alternativa bez GitHub pristupa
+
+`./deploy.sh karlo@46.62.233.229` rsynca kod izravno; `.env` i `*.db` su izuzeti pa se ne gaze.
 
 ## Cron (dnevni snapshot, radnim danom nakon zatvaranja US tržišta)
 
