@@ -97,12 +97,17 @@ def collect(conn: sqlite3.Connection) -> dict:
     }
 
 
+def _hr(formatted: str) -> str:
+    """1,234.50 -> 1.234,50 (hrvatski format: točka tisućice, zarez decimale)."""
+    return formatted.replace(",", "\x00").replace(".", ",").replace("\x00", ".")
+
+
 def _eur(v: float | None) -> str:
-    return "n/d" if v is None else f"{v:,.2f} EUR".replace(",", ".")
+    return "n/d" if v is None else f"{_hr(f'{v:,.2f}')} EUR"
 
 
 def _signed(v: float | None) -> str:
-    return "n/d" if v is None else f"{v:+,.2f} EUR".replace(",", ".")
+    return "n/d" if v is None else f"{_hr(f'{v:+,.2f}')} EUR"
 
 
 def status_text(data: dict) -> str:
