@@ -1,0 +1,85 @@
+# Pravila portfelja.
+#
+# Pišu se UNAPRIJED i mijenjaju se svjesno, rijetko i s datumom u LEARNING.md.
+# Mijenjati pravilo zato što ga trenutno kršiš je isto što i nemati pravilo.
+#
+# Provjeru radi rules.py — deterministički, bez LLM-a. Agent ih smije citirati,
+# ne tumačiti i ne relativizirati.
+
+verzija: 1
+
+# Nazivnik za sve postotke.
+#   ukupna_vrijednost = pozicije + cash   (standardno)
+#   samo_pozicije     = bez casha
+osnovica: ukupna_vrijednost
+
+
+# ── Klasifikacija ────────────────────────────────────────────────────────────
+# Svaki ticker mora biti svrstan. Nesvrstan ticker je GREŠKA, ne pretpostavka —
+# jer bi ga inače tiho tretirali po krivim pragovima.
+#
+# Zašto uopće: "max 25 % po poziciji" bez klasifikacije bi proglasilo prekršajem
+# all-world ETF s tisućama kompanija, a propustilo 20 % u jednoj dionici.
+# Koncentracija se mjeri po IZDAVATELJU, ne po retku u portfelju.
+
+klasifikacija:
+  VWCEd_EQ: siroki_etf        # Vanguard FTSE All-World (Acc)
+  VFEGl_EQ: siroki_etf        # Vanguard FTSE Emerging Markets (Acc)
+  BRK_B_US_EQ: dionica        # Berkshire Hathaway (Class B)
+  GOOG_US_EQ: dionica         # Alphabet (Class C)
+  MU_US_EQ: dionica           # Micron Technology
+  CEBSd_EQ: sektorski_etf     # iShares Copper Miners
+  NUCGl_EQ: sektorski_etf     # VanEck Uranium and Nuclear
+  SGLPl_EQ: roba              # Invesco Physical Gold
+
+
+# ── Pragovi po kategoriji ────────────────────────────────────────────────────
+# max_po_poziciji_pct = najveći udio JEDNE pozicije te kategorije
+# max_ukupno_pct      = najveći zbroj SVIH pozicija te kategorije
+# null                = bez ograničenja
+
+kategorije:
+
+  siroki_etf:
+    opis: Globalni ili široki regionalni ETF, tisuće izdavatelja
+    max_po_poziciji_pct: null
+    max_ukupno_pct: null
+
+  dionica:
+    opis: Pojedinačna kompanija — jedina prava koncentracija
+    max_po_poziciji_pct: 15
+    max_ukupno_pct: 40
+
+  sektorski_etf:
+    opis: Uski sektor ili tema (bakar, uran, obrana...)
+    max_po_poziciji_pct: 10
+    max_ukupno_pct: 20
+
+  roba:
+    opis: Fizička roba (zlato, srebro)
+    max_po_poziciji_pct: 10
+    max_ukupno_pct: 15
+
+  kripto:
+    opis: Kriptovalute
+    max_po_poziciji_pct: 10
+    max_ukupno_pct: 15
+
+
+# ── Ostalo ───────────────────────────────────────────────────────────────────
+
+ostalo:
+  # Ispod ovoga upozori da nema rezerve za priliku ni za trošak.
+  min_cash_eur: 0
+
+  # Koliko snapshot smije biti star prije nego što se brojkama ne vjeruje.
+  # Cron ide radnim danom u 22:15, pa vikend normalno prelazi 24 h.
+  max_starost_sati: 96
+
+
+# ── Tvrde granice (ne provjeravaju se kodom, tu su da se citiraju) ───────────
+nacela:
+  - Live račun je read-only, zauvijek.
+  - LLM nikad ne računa brojke i nikad nema zadnju riječ.
+  - Prinos preko 13 posto na crowdfundingu je signal rizika, ne prilika.
+  - Nisam pobijedio tržište dok to ne pokaže log, ne osjećaj.
