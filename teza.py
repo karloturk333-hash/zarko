@@ -48,13 +48,28 @@ def _sada() -> str:
 
 
 def spoji(putanja: str | Path = DEFAULT_TEZE_DB) -> sqlite3.Connection:
-    """Otvori (i po potrebi stvori) bazu teza."""
+    """Otvori (i po potrebi stvori) bazu teza.
+
+    Bazu dijele dva korisnika — hermes piše teze, karlo im upisuje ishod — pa
+    je greška u pravima očekivan kvar, a ne nezamisliv. Zato ide s uputom, ne
+    s tracebackom.
+    """
     putanja = Path(putanja)
-    putanja.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(putanja)
-    conn.row_factory = sqlite3.Row
-    conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-    return conn
+    try:
+        putanja.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(putanja)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        return conn
+    except (OSError, sqlite3.OperationalError) as e:
+        raise Nevaljano(
+            f"Baza teza {putanja} nije dostupna: {e}\n"
+            f"Direktorij mora biti čitljiv i pisiv i korisniku hermes i korisniku "
+            f"karlo:\n"
+            f"    sudo chgrp -R karlo {putanja.parent}\n"
+            f"    sudo chmod 2770 {putanja.parent}\n"
+            f"    sudo chmod 660 {putanja}"
+        ) from e
 
 
 # ── Kontekst iz determinističkih izvora ──────────────────────────────────────
@@ -220,7 +235,12 @@ def main() -> None:
     p_zat.add_argument("--biljeska")
 
     args = parser.parse_args()
-    conn = spoji(args.teze_db)
+
+    try:
+        conn = spoji(args.teze_db)
+    except Nevaljano as e:
+        print(f"ODBIJENO: {e}", file=sys.stderr)
+        sys.exit(1)
 
     try:
         if args.naredba == "zapisi":
