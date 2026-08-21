@@ -25,11 +25,13 @@ rsync -avz --delete \
     --exclude '__pycache__' \
     --exclude '.git' \
     --exclude 'snapshot.log' \
+    --exclude 'state/crypto.json' \
+    --exclude 'state/zse.json' \
     "$LOCAL_DIR/" "$TARGET:$REMOTE_PATH/"
 
 echo
 echo "Kod je gore. Provjera okoline:"
-ssh "$TARGET" "cd '$REMOTE_PATH' && python3 --version && python3 -m unittest test_fx 2>&1 | tail -3"
+ssh "$TARGET" "cd '$REMOTE_PATH' && python3 --version && python3 -m unittest discover -p 'test_*.py' 2>&1 | tail -5"
 
 echo
 if ssh "$TARGET" "test -f '$REMOTE_PATH/.env'"; then

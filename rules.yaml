@@ -16,7 +16,9 @@ osnovica: ukupna_vrijednost
 
 # ── Klasifikacija ────────────────────────────────────────────────────────────
 # Svaki ticker mora biti svrstan. Nesvrstan ticker je GREŠKA, ne pretpostavka —
-# jer bi ga inače tiho tretirali po krivim pragovima.
+# jer bi ga inače tiho tretirali po krivim pragovima. Vrijedi i za kripto/ZSE
+# koje Hermes izveze u state/*.json: ticker mora biti ovdje prije nego što
+# dashboard spoji izvore.
 #
 # Zašto uopće: "max 25 % po poziciji" bez klasifikacije bi proglasilo prekršajem
 # all-world ETF s tisućama kompanija, a propustilo 20 % u jednoj dionici.

@@ -114,14 +114,17 @@ postavlja s `FX_API_URL`.
 | `db.py` + `schema.sql` | SQLite shema, spremanje snapshota, unakrsna provjera | ne |
 | `portfolio.py` | CLI za dohvat i spremanje — **jedini dodiruje ključ** | čita |
 | `report.py` | izvještaji iz baze, read-only konekcija, bez ključa | ne |
+| `t212_adapter.py` + `crypto_adapter.py` + `zse_adapter.py` | izvori → zajednička `Position` shema | ne |
+| `view.py` | agregacija + read-only HTML dashboard (localhost) | ne |
 | `rules.py` + `rules.yaml` | deterministička provjera portfelja protiv pragova | ne |
 | `miniyaml.py` | YAML čitač bez ovisnosti | ne |
 | `llm_output.py` | validacija odgovora modela | ne |
 | `teza.py` + `teze.sql` | zapisnik tvrdnji agenta, s ishodom | ne |
 | `hermes/skills/portfelj.md` | pravila po kojima agent radi | ne |
+| `hermes/skills/stanje.md` | agent piše `state/crypto.json` i `state/zse.json` | ne |
 
 Testovi: `test_fx.py` (32), `test_rules.py` (22), `test_llm_output.py` (42),
-`test_teza.py` (13). Ukupno **109**, nijedan ne dira mrežu.
+`test_teza.py` (13), `test_view.py` (21). Ukupno **130**, nijedan ne dira mrežu.
 
 ---
 
@@ -153,6 +156,80 @@ Izlazni kod je 1 ako postoji kršenje, pa se `rules.py` može staviti u cron.
 
 **Prije prve upotrebe prepiši `rules.yaml` na svoje pozicije i svoje pragove.**
 Zatečeni pragovi su primjer, ne preporuka.
+
+---
+
+## Dashboard (T212 + kripto + ZSE)
+
+Jedan read-only HTML pregled cijelog portfelja, s filterima. Ne zamjenjuje
+`report.py` — agent i dalje ide isključivo kroz CLI. Ovo je za tebe, u
+browseru, s laptopa i mobitela.
+
+```bash
+python3 view.py --json                 # isti podaci kao tablica
+python3 view.py serve                  # http://127.0.0.1:8787
+python3 view.py serve --bind 127.0.0.1 --port 8787
+```
+
+Zadani bind je **localhost**. `--bind 0.0.0.0` ispiše upozorenje: Hetzner
+vatrozid ostaje samo SSH; javni pristup ide tunelom, ne otvorenim portom.
+
+Tri izvora, jedan `Position` oblik. Težina (`weight_pct_of_total`) se računa
+tek nakon spajanja — T212-ovih 50 % unutar T212-a nije 50 % cijelog portfelja.
+T212 je snapshot (cron 22:15); kripto i ZSE su `live` ako ih Hermes izveze.
+
+Kripto i ZSE **ne čitaju se** iz `~/.hermes/state` (mapa je `750 hermes`).
+Hermes piše kontrakt u `/opt/zarko/state/` (ista prava kao `teze/`), zarko
+samo čita. Shema: [`state/README.md`](state/README.md). Skill:
+[`hermes/skills/stanje.md`](hermes/skills/stanje.md).
+
+```bash
+sudo mkdir -p /opt/zarko/state
+sudo chown hermes:<tvoj-korisnik> /opt/zarko/state
+sudo chmod 2770 /opt/zarko/state
+sudo cp /opt/zarko/hermes/skills/stanje.md /opt/hermes/.hermes/skills/
+sudo chown hermes:hermes /opt/hermes/.hermes/skills/stanje.md
+```
+
+Svaki ticker u `state/*.json` mora biti u `rules.yaml` pod `klasifikacija:`.
+Nesvrstan ticker ruši cijeli pogled — namjerno, isto kao `rules.py`.
+
+### Pristup s mobitela — Cloudflare Tunnel + Access
+
+Dashboard sluša na `127.0.0.1:8787`. Cloudflare Tunnel je **odlazna** veza
+(kao Telegram long polling): vatrozid se ne otvara. Access je identitet —
+samo tvoj email prolazi.
+
+1. Unit na serveru (korisnika u datoteci prilagodi):
+
+```bash
+sudo cp /opt/zarko/deploy/dashboard.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now zarko-dashboard
+ss -tlnp | grep 8787    # mora biti 127.0.0.1, ne 0.0.0.0
+```
+
+2. [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+   na serveru, tunel prema localhostu. Uzorak:
+   [`deploy/cloudflared.yml.example`](deploy/cloudflared.yml.example).
+
+```bash
+cloudflared tunnel create zarko
+cloudflared tunnel route dns zarko portfelj.tvoja-domena.com
+# credentials-file iz tunela, config po uzorku, zatim:
+sudo systemctl enable --now cloudflared
+```
+
+3. Zero Trust → Access → Application na isti hostname. Policy **Allow** samo
+   tvoja adresa. Svi ostali dobiju login ekran i ostanu vani.
+
+Alternativa: Tailscale na serveru, laptopu i telefonu. Tada uopće ne treba
+domena — otvoriš `http://<tailscale-ip>:8787`. Unit i dalje veži na
+`127.0.0.1` i koristi Tailscale subnet router ili slušaj na Tailscale IP;
+nikad na `0.0.0.0` prema javnom internetu.
+
+Vercel nije u ovom sloju: frontend ne vidi SQLite na Hetzneru, a JSON s
+brojkama portfelja ne ide trećoj strani.
 
 ---
 
@@ -440,8 +517,8 @@ df -h / && free -m                             # disk i memorija
 
 `ss -tlnp` je najvažnija: ako nešto sluša na `0.0.0.0` osim SSH-a, to je nova
 izložena površina. Telegram agent radi **long pollingom**, dakle sam se spaja
-prema van i **ne otvara nijedan port** — ako se pojavi novi, netko je promijenio
-način rada.
+prema van i **ne otvara nijedan port**. Dashboard sluša na `127.0.0.1:8787` —
+to je u redu; `0.0.0.0:8787` nije. Cloudflare Tunnel je isto odlazna veza.
 
 ### 7. Testiranje agenta
 
@@ -512,5 +589,7 @@ Klijent na 429 čeka po `Retry-After` odnosno `x-ratelimit-reset`.
   odbija svaku koje nema u determinističkom izvoru.
 - **Agent ne pokreće `portfolio.py`** ni s jednom zastavicom — ta skripta drži
   kredencijale i pokreće je isključivo cron.
+- **Dashboard je read-only.** `view.py` ne piše u `portfolio.db`, `rules.yaml`
+  ni `.env`, ne zove CoinGecko/ZSE, i sluša samo na localhostu.
 - **Pravila se mijenjaju svjesno**, s datumom u `LEARNING.md`, i nikad zato što
   se trenutno krše.

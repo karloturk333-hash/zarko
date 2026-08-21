@@ -5,3 +5,5 @@
 *.db-shm
 __pycache__/
 *.pyc
+state/crypto.json
+state/zse.json

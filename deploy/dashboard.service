@@ -1,0 +1,16 @@
+[Unit]
+Description=zarko portfolio dashboard (localhost only)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/zarko
+ExecStart=/usr/bin/python3 /opt/zarko/view.py serve --bind 127.0.0.1 --port 8787
+Restart=on-failure
+RestartSec=3
+# Ne sme se slušati na 0.0.0.0 — vatrozid ostaje samo SSH.
+User=karlo
+Group=karlo
+
+[Install]
+WantedBy=multi-user.target
