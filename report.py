@@ -41,7 +41,7 @@ def collect(conn: sqlite3.Connection) -> dict:
 
     positions = conn.execute(
         """SELECT ticker, name, currency, quantity, market_value_eur,
-                  unrealized_pl_eur, check_delta_pct
+                  total_cost_eur, unrealized_pl_eur, check_delta_pct
            FROM positions WHERE snapshot_id = ?
            ORDER BY market_value_eur DESC""", (latest["id"],)).fetchall()
 
@@ -78,6 +78,7 @@ def collect(conn: sqlite3.Connection) -> dict:
                 "currency": p["currency"],
                 "quantity": p["quantity"],
                 "market_value_eur": p["market_value_eur"],
+                "total_cost_eur": p["total_cost_eur"],
                 "unrealized_pl_eur": p["unrealized_pl_eur"],
                 "pct": (100.0 * (p["market_value_eur"] or 0) / total_positions
                         if total_positions else None),

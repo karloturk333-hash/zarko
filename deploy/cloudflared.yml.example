@@ -1,0 +1,16 @@
+# Cloudflare Tunnel — primjer. Hostname i tunnel ID zamijeni svojim.
+#
+#   cloudflared tunnel create zarko
+#   cloudflared tunnel route dns zarko portfelj.tvoja-domena.com
+#
+# Token/credentials žive SAMO na serveru, ne u gitu.
+# Access policy: Zero Trust → Access → Applications → ista hostname,
+#   policy "Allow" samo tvoj email. Svi ostali = blok.
+
+tunnel: ZAMIJENI-TUNNEL-UUID
+credentials-file: /home/karlo/.cloudflared/ZAMIJENI-TUNNEL-UUID.json
+
+ingress:
+  - hostname: portfelj.tvoja-domena.com
+    service: http://127.0.0.1:8787
+  - service: http_status:404

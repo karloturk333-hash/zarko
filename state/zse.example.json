@@ -1,0 +1,16 @@
+{
+  "source": "zse",
+  "as_of": "2026-08-21T15:30:00Z",
+  "freshness": "live",
+  "cash_eur": 0,
+  "positions": [
+    {
+      "ticker": "HT-R-A",
+      "name": "Hrvatski Telekom",
+      "quantity": 10,
+      "currency": "EUR",
+      "value_eur": 400.0,
+      "cost_eur": 350.0
+    }
+  ]
+}

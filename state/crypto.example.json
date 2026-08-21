@@ -1,0 +1,16 @@
+{
+  "source": "crypto",
+  "as_of": "2026-08-21T20:00:00Z",
+  "freshness": "live",
+  "cash_eur": 0,
+  "positions": [
+    {
+      "ticker": "BTC",
+      "name": "Bitcoin",
+      "quantity": 0.01,
+      "currency": "EUR",
+      "value_eur": 1000.0,
+      "cost_eur": 800.0
+    }
+  ]
+}
