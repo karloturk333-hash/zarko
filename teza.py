@@ -75,11 +75,17 @@ def spoji(putanja: str | Path = DEFAULT_TEZE_DB) -> sqlite3.Connection:
 # ── Kontekst iz determinističkih izvora ──────────────────────────────────────
 
 
-def kontekst(portfolio_db: str | Path = db.DEFAULT_DB) -> dict:
+def kontekst(portfolio_db: str | Path = db.DEFAULT_DB,
+             state_dir: str | Path | None = None,
+             rules_path: str | Path | None = None,
+             history_path: str | Path | None = None) -> dict:
     """Sve što treba za provjeru teze: dozvoljeni tickeri, brojke i stanje.
 
+    Stanje je CIJELI portfelj (report.collect_view — T212 + kripto + ZSE),
+    pa je teza o BTC-u ili ZSE poziciji provjerljiva isto kao o T212 dionici.
+
     Brojke dolaze iz TRI izvora:
-      - report.py --json    pune vrijednosti iz baze (8.436903...)
+      - report.py --json    pune vrijednosti iz izvora (8.436903...)
       - report.py ispis     zaokruženo, onako kako agent to VIDI (8.4 %)
       - rules.yaml          pragovi, da teza smije reći "granica je 15 posto"
 
@@ -87,23 +93,15 @@ def kontekst(portfolio_db: str | Path = db.DEFAULT_DB) -> dict:
     puna preciznost. Bez zaokruženog oblika bi mu vlastiti izvještaj bio odbijen
     kao izmišljotina.
     """
-    pravila = rules.ucitaj_pravila()
+    from position import ViewGreska  # noqa: PLC0415 — report lazy-uvozi view
 
-    portfolio_db = Path(portfolio_db)
-    if not portfolio_db.exists():
-        raise Nevaljano(
-            f"Baza {portfolio_db} ne postoji, pa se brojke nemaju s čim usporediti. "
-            f"Pokreni: python3 portfolio.py --save"
-        )
+    pravila = rules.ucitaj_pravila(rules_path or rules.RULES_PATH)
 
-    conn = sqlite3.connect(f"file:{portfolio_db}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
     try:
-        podaci = report.collect(conn)
-    except report.NoData as e:
+        podaci = report.collect_view(portfolio_db, state_dir, rules_path,
+                                     history_path)
+    except (report.NoData, ViewGreska, rules.PravilaGreska) as e:
         raise Nevaljano(str(e)) from e
-    finally:
-        conn.close()
 
     return {
         "tickeri": set(pravila["klasifikacija"]),

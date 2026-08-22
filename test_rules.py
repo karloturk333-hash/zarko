@@ -6,10 +6,12 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 
 import miniyaml
 import rules
+import test_view
 from rules import PravilaGreska
 
 PRAVILA = {
@@ -163,6 +165,53 @@ class TestProvjera(unittest.TestCase):
         nalazi = rules.provjeri(st, PRAVILA)
         self.assertTrue(any(n.predmet == "VWCEd_EQ" and n.ozbiljnost == "upozorenje"
                             for n in nalazi))
+
+
+class TestStanjeSpojeno(test_view.Fixture):
+    """rules.stanje() gradi CIJELI portfelj — kripto/ZSE ulaze u nazivnik."""
+
+    def _stanje(self):
+        return rules.stanje(self.db_path, self.state, pravila=test_view.PRAVILA)
+
+    def _upisi_crypto(self):
+        (self.state / "crypto.json").write_text(
+            json.dumps(test_view.crypto_payload()), encoding="utf-8")
+
+    def test_kripto_ulazi_u_stanje_i_nazivnik(self):
+        self._upisi_crypto()
+        st = self._stanje()
+        self.assertEqual(st["ukupna_vrijednost"], 1200.0)
+        btc = next(p for p in st["pozicije"] if p["ticker"] == "BTC")
+        self.assertEqual(btc["izvor"], "crypto")
+
+        nalazi = rules.provjeri(st, test_view.PRAVILA)
+        # BTC je 16.7 % ukupnog portfelja: preko max_po_poziciji (10) i
+        # kategorija kripto preko max_ukupno (15). Bez spajanja bi oba prošla.
+        self.assertTrue(any(n.predmet == "BTC" and n.ozbiljnost == "krsenje"
+                            for n in nalazi))
+        self.assertTrue(any(n.predmet == "kripto" and n.ozbiljnost == "krsenje"
+                            for n in nalazi))
+
+    def test_taken_at_je_najstariji_izvor(self):
+        self._upisi_crypto()
+        st = self._stanje()
+        # T212 snapshot (20.08) je stariji od kripto as_of (21.08).
+        self.assertEqual(st["taken_at"], "2026-08-20T20:15:00Z")
+
+    def test_bez_jsona_radi_samo_t212(self):
+        st = self._stanje()
+        self.assertEqual(st["ukupna_vrijednost"], 1000.0)
+        izvori = {s["izvor"]: s for s in st["izvori"]}
+        self.assertFalse(izvori["crypto"]["dostupan"])
+
+    def test_kupnja_na_spojenom_stanju(self):
+        self._upisi_crypto()
+        st = self._stanje()
+        prije, poslije = rules.simuliraj_kupnju(
+            st, test_view.PRAVILA, "BTC", 100.0)
+        n = next(n for n in poslije if n.predmet == "BTC")
+        # 300 / 1300 = 23.1 % — mjeri se na cijelom portfelju
+        self.assertAlmostEqual(n.izmjereno, 23.08, places=2)
 
 
 class TestKupnja(unittest.TestCase):

@@ -5,24 +5,33 @@ description: Stanje i analiza Karlovog investicijskog portfelja. Koristi kad pit
 
 # Portfelj
 
-Podaci dolaze iz SQLite baze koju puni `portfolio.py` (Trading212, read-only API ključ).
-Ti do te baze dolaziš **isključivo** preko `report.py`.
+Brojke pokrivaju **cijeli portfelj**: T212 (SQLite baza koju puni `portfolio.py`),
+plus kripto i ZSE (`state/*.json` koje ti izvoziš skillom `stanje`). Isti izvori
+kao Karlov dashboard. Do svega dolaziš **isključivo** preko `report.py`.
 
 ## Kako dohvatiti podatke
 
 ```bash
-python3 /opt/zarko/report.py status    # trenutno stanje i alokacija
-python3 /opt/zarko/report.py digest    # stanje + promjena od prošlog snapshota
+python3 /opt/zarko/report.py status    # cijeli portfelj i alokacija
+python3 /opt/zarko/report.py digest    # + promjena od prošlog agregiranog snapshota
 python3 /opt/zarko/report.py --json    # isto, strojno čitljivo
 ```
 
 Za pitanja koja traže detalj kojeg u tim izlazima nema, koristi `--json` i čitaj polja.
-Baza se otvara read-only konekcijom; upis nije moguć i ne treba ti.
+Sve se otvara read-only; upis nije moguć i ne treba ti.
+
+Redak `Izvori:` kaže svježinu svakog izvora — T212 je sinoćnji snapshot,
+kripto/ZSE su onoliko svježi koliko je tvoj zadnji izvoz. **Ne miješaj ih bez
+oznake**: "T212 od jučer 22:15, kripto live" je točno; "stanje od jučer" nije.
+Ako neki izvor piše `n/d`, reci koji fali i zašto (npr. `state/zse.json` još
+nije izvezen) — nemoj tiho izostaviti taj dio portfelja.
 
 ## Pravila portfelja (rules.yaml)
 
-Karlo je pragove zapisao unaprijed. Provjeru radi `rules.py`, deterministički.
-Ti ih **citiraš**, ne tumačiš i ne relativiziraš.
+Karlo je pragove zapisao unaprijed. Provjeru radi `rules.py`, deterministički,
+**na cijelom portfelju** — kripto i ZSE ulaze u nazivnik i u kategorije, pa
+"kripto max 15 %" znači 15 % svega, ne 15 % T212 računa.
+Ti nalaze **citiraš**, ne tumačiš i ne relativiziraš.
 
 ```bash
 python3 /opt/zarko/rules.py provjeri              # stanje protiv pravila
@@ -193,3 +202,6 @@ naslovi s `#`, nikakve tablice, nikakvi horizontalni razdjelnici.
   na otvorenim pozicijama. Ne miješaj ih u istu rečenicu bez oznake koji je koji.
 - Snapshot nastaje radnim danom u 22:15 (Europe/Zagreb), 15 min nakon zatvaranja
   američkog tržišta. Vikendom su podaci od petka i to nije greška.
+- Digest uspoređuje s zadnjim redom `view_history.db` (piše ga cron
+  `view.py --snapshot` u 22:20). Ako usporedbe nema, to znači da taj cron još
+  nije prošao — reci to, ne računaj promjenu sam.

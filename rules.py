@@ -2,15 +2,19 @@
 """Rules engine — provjerava portfelj protiv rules.yaml. Deterministički, bez LLM-a.
 
 Ovo je sloj koji te treba zaustaviti. Ne daje mišljenje, ne procjenjuje, ne
-ublažava: uspoređuje brojke iz baze s pragovima koje si zapisao unaprijed i
-javlja odstupanja, citirajući pravilo.
+ublažava: uspoređuje brojke s pragovima koje si zapisao unaprijed i javlja
+odstupanja, citirajući pravilo.
+
+Mjeri se CIJELI portfelj — T212 iz portfolio.db plus kripto i ZSE iz
+state/*.json, isti izvori kao dashboard. Bez toga bi "kripto max 15 %" gledao
+krivi nazivnik, a BTC uopće ne bi vidio.
 
     python3 rules.py provjeri                  # stanje protiv pravila
     python3 rules.py kupnja BRK_B_US_EQ 500    # bi li ta kupnja prekršila pravilo
     python3 rules.py pravila                   # ispiši pravila (za citiranje)
     python3 rules.py provjeri --json           # strojno čitljivo
 
-Baza se otvara read-only. Kredencijali se ne diraju.
+Sve se otvara read-only. Kredencijali se ne diraju.
 """
 
 from __future__ import annotations
@@ -59,30 +63,73 @@ def ucitaj_pravila(putanja=RULES_PATH) -> dict:
     return pravila
 
 
-# ── Stanje iz baze ───────────────────────────────────────────────────────────
+# ── Stanje portfelja ─────────────────────────────────────────────────────────
 
-def stanje(conn: sqlite3.Connection) -> dict:
-    snap = conn.execute(
-        "SELECT * FROM snapshots ORDER BY id DESC LIMIT 1").fetchone()
-    if not snap:
-        raise PravilaGreska("Nema snapshota. Pokreni: python3 portfolio.py --save")
+def _check_delte(db_path: Path) -> dict[str, float | None]:
+    """check_delta_pct po tickeru iz zadnjeg T212 snapshota. Kripto/ZSE ga nemaju."""
+    if not db_path.exists():
+        return {}
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        snap = conn.execute(
+            "SELECT id FROM snapshots ORDER BY id DESC LIMIT 1").fetchone()
+        if not snap:
+            return {}
+        return {
+            r["ticker"]: r["check_delta_pct"]
+            for r in conn.execute(
+                "SELECT ticker, check_delta_pct FROM positions WHERE snapshot_id = ?",
+                (snap["id"],))
+        }
+    finally:
+        conn.close()
 
-    pozicije = conn.execute(
-        """SELECT ticker, name, currency, market_value_eur, check_delta_pct
-           FROM positions WHERE snapshot_id = ? ORDER BY market_value_eur DESC""",
-        (snap["id"],)).fetchall()
+
+def stanje(db_path: str | Path = DEFAULT_DB,
+           state_dir: str | Path | None = None,
+           pravila: dict | None = None,
+           rules_path: str | Path = RULES_PATH) -> dict:
+    """Cijeli portfelj (T212 + kripto + ZSE) kroz view.assemble().
+
+    Pragovi se mjere na istom nazivniku koji vidi dashboard — T212-ov udio
+    unutar T212-a nije udio u portfelju. `taken_at` je NAJSTARIJI as_of
+    dostupnih izvora, pa upozorenje o starosti reagira čim bilo koji izvor
+    zastari. Sve read-only.
+    """
+    # Uvoz unutar funkcije: view uvozi rules, pa bi uvoz na razini modula
+    # zatvorio krug.
+    import view  # noqa: PLC0415
+    from position import ViewGreska  # noqa: PLC0415
+
+    if pravila is None:
+        pravila = ucitaj_pravila(rules_path)
+    db_path = Path(db_path)
+    state_dir = Path(state_dir) if state_dir else view.DEFAULT_STATE
+
+    try:
+        v = view.assemble(db_path, state_dir, pravila)
+    except ViewGreska as e:
+        raise PravilaGreska(str(e)) from e
+
+    delte = _check_delte(db_path)
+    dostupni = [s for s in v.sources if s.available and s.as_of]
 
     return {
-        "snapshot_id": snap["id"],
-        "taken_at": snap["taken_at"],
-        "ukupna_vrijednost": snap["total_value_eur"],
-        "samo_pozicije": snap["positions_value_eur"],
-        "cash_eur": snap["cash_available_eur"],
+        "taken_at": min((s.as_of for s in dostupni), default=None),
+        "ukupna_vrijednost": v.total_value_eur,
+        "samo_pozicije": v.positions_value_eur,
+        "cash_eur": v.cash_eur,
+        "izvori": [
+            {"izvor": s.source, "svjezina": s.freshness, "as_of": s.as_of,
+             "dostupan": s.available, "greska": s.error}
+            for s in v.sources
+        ],
         "pozicije": [
-            {"ticker": p["ticker"], "naziv": p["name"], "valuta": p["currency"],
-             "eur": p["market_value_eur"] or 0.0,
-             "check_delta_pct": p["check_delta_pct"]}
-            for p in pozicije
+            {"ticker": p.ticker, "naziv": p.name, "valuta": p.currency,
+             "eur": p.value_eur, "izvor": p.source,
+             "check_delta_pct": delte.get(p.ticker)}
+            for p in v.positions
         ],
     }
 
@@ -265,12 +312,19 @@ def simuliraj_kupnju(st: dict, pravila: dict, ticker: str,
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
-def _otvori_bazu(putanja: str) -> sqlite3.Connection:
-    if not Path(putanja).exists():
-        raise PravilaGreska(f"Baza {putanja} ne postoji. Pokreni portfolio.py --save")
-    conn = sqlite3.connect(f"file:{putanja}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
-    return conn
+_IZVOR_LABEL = {"t212": "T212", "crypto": "Kripto", "zse": "ZSE"}
+
+
+def _izvori_redak(st: dict) -> str:
+    dijelovi = []
+    for s in st.get("izvori") or []:
+        label = _IZVOR_LABEL.get(s["izvor"], s["izvor"])
+        if not s["dostupan"]:
+            dijelovi.append(f"{label} n/d")
+        else:
+            kad = (s["as_of"] or "")[:16].replace("T", " ")
+            dijelovi.append(f"{label} {s['svjezina']} {kad}")
+    return " · ".join(dijelovi)
 
 
 def _ispisi(nalazi: list[Nalaz], naslov: str) -> None:
@@ -290,6 +344,8 @@ def main() -> None:
     p.add_argument("ticker", nargs="?")
     p.add_argument("iznos", nargs="?", type=float)
     p.add_argument("--db", default=str(DEFAULT_DB))
+    p.add_argument("--state", default=None,
+                   help="mapa s crypto.json i zse.json (zadano state/ uz kod)")
     p.add_argument("--rules", default=str(RULES_PATH))
     p.add_argument("--json", action="store_true")
     a = p.parse_args()
@@ -311,22 +367,19 @@ def main() -> None:
                     print(f"  - {n}")
             return
 
-        conn = _otvori_bazu(a.db)
-        try:
-            st = stanje(conn)
-        finally:
-            conn.close()
+        st = stanje(a.db, a.state, pravila=pravila)
 
         if a.naredba == "provjeri":
             nalazi = provjeri(st, pravila)
             if a.json:
                 json.dump({"snapshot": st["taken_at"],
                            "ukupno_eur": st["ukupna_vrijednost"],
+                           "izvori": st["izvori"],
                            "nalazi": [asdict(n) for n in nalazi]},
                           sys.stdout, indent=2, ensure_ascii=False)
                 print()
             else:
-                _ispisi(nalazi, f"Pravila — snapshot {st['taken_at']}")
+                _ispisi(nalazi, f"Pravila — {_izvori_redak(st)}")
             sys.exit(1 if any(n.ozbiljnost == "krsenje" for n in nalazi) else 0)
 
         # kupnja
