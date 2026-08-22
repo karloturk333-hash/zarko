@@ -106,7 +106,7 @@ python3 view.py serve                  # http://127.0.0.1:8787
 python3 view.py --snapshot
 ```
 
-Bind je localhost. `0.0.0.0` nije za javni internet. CSS je u `static/` (Pico + `dashboard.css`), isti proces, bez CDN-a.
+Bind je localhost. `0.0.0.0` nije za javni internet. CSS je u `static/` (Pico kao baza + `dashboard.css` koji nosi izgled), isti proces, bez CDN-a i bez Google Fontsa. Izvor koji je star ili nedostaje dobije badge — brojka se ne skriva.
 
 ```bash
 sudo mkdir -p /opt/zarko/state
