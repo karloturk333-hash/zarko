@@ -32,7 +32,13 @@ klasifikacija:
   MU_US_EQ: dionica           # Micron Technology
   CEBSd_EQ: sektorski_etf     # iShares Copper Miners
   NUCGl_EQ: sektorski_etf     # VanEck Uranium and Nuclear
-  SGLPl_EQ: roba              # Invesco Physical Gold
+  SGLPl_EQ: roba
+  BTC: kripto
+  ETH: kripto
+  BSQR: dionica
+  ZSE_7CRO_GENIUS: sektorski_etf
+  ZSE_REGIONAL_MIX: sektorski_etf
+  
 
 
 # ── Pragovi po kategoriji ────────────────────────────────────────────────────

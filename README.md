@@ -21,7 +21,7 @@ Bez vanjskih ovisnosti: čista standardna biblioteka. Radi na Pythonu 3.9+
 ```bash
 git clone <tvoj-repo> zarko && cd zarko
 cp .env.example .env && chmod 600 .env    # upiši ključ i secret
-python3 -m unittest discover -p "test_*.py"   # 109 testova, bez mreže
+python3 -m unittest discover -p "test_*.py"   # 138 testova, bez mreže
 python3 portfolio.py --check              # 1 poziv, provjeri kredencijale
 python3 portfolio.py --save               # snimi prvi snapshot
 python3 report.py status
@@ -115,7 +115,7 @@ postavlja s `FX_API_URL`.
 | `portfolio.py` | CLI za dohvat i spremanje — **jedini dodiruje ključ** | čita |
 | `report.py` | izvještaji iz baze, read-only konekcija, bez ključa | ne |
 | `t212_adapter.py` + `crypto_adapter.py` + `zse_adapter.py` | izvori → zajednička `Position` shema | ne |
-| `view.py` | agregacija + read-only HTML dashboard (localhost) | ne |
+| `view.py` | agregacija + read-only HTML dashboard (localhost); `--snapshot` piše `view_history.db` | ne |
 | `rules.py` + `rules.yaml` | deterministička provjera portfelja protiv pragova | ne |
 | `miniyaml.py` | YAML čitač bez ovisnosti | ne |
 | `llm_output.py` | validacija odgovora modela | ne |
@@ -124,7 +124,7 @@ postavlja s `FX_API_URL`.
 | `hermes/skills/stanje.md` | agent piše `state/crypto.json` i `state/zse.json` | ne |
 
 Testovi: `test_fx.py` (32), `test_rules.py` (22), `test_llm_output.py` (42),
-`test_teza.py` (13), `test_view.py` (21). Ukupno **130**, nijedan ne dira mrežu.
+`test_teza.py` (13), `test_view.py` (28). Ukupno **137**, nijedan ne dira mrežu.
 
 ---
 
@@ -169,10 +169,24 @@ browseru, s laptopa i mobitela.
 python3 view.py --json                 # isti podaci kao tablica
 python3 view.py serve                  # http://127.0.0.1:8787
 python3 view.py serve --bind 127.0.0.1 --port 8787
+python3 view.py --snapshot             # agregat u view_history.db (cron)
 ```
 
 Zadani bind je **localhost**. `--bind 0.0.0.0` ispiše upozorenje: Hetzner
 vatrozid ostaje samo SSH; javni pristup ide tunelom, ne otvorenim portom.
+
+HTML: ukupni zbrojevi, pie alokacije po kategoriji (klik filtrira
+`?category=`), linija vrijednosti (debela = ukupno, tanje = T212 / kripto /
+ZSE), zatim filteri i tablica. Težine u pieu ostaju udio u cijelom portfelju.
+Dok serija ima samo jednu točku, kartica pokazuje iznos umjesto usamljene
+točke. Dok nema nijednog `view.py --snapshot`, linija „ukupno“ je samo T212
+(`snapshots.total_value_eur` u `portfolio.db`); poslije je zbroj sva tri
+izvora iz `view_history.db`. HTTP tu bazu ne piše.
+
+Stil je vendored Pico.css (`static/pico.min.css`, v2.1.1) plus
+`static/dashboard.css`. Isti `view.py` servira `GET /static/*.css` — nema
+CDN-a ni npm-a. Kategorije u UI imaju ljudske nazive (Široki ETF); filter
+i dalje ide slugom (`?category=siroki_etf`).
 
 Tri izvora, jedan `Position` oblik. Težina (`weight_pct_of_total`) se računa
 tek nakon spajanja — T212-ovih 50 % unutar T212-a nije 50 % cijelog portfelja.
@@ -308,6 +322,7 @@ crontab -e
 
 ```
 15 22 * * 1-5 cd /opt/zarko && python3 portfolio.py --save --quiet >> snapshot.log 2>&1
+20 22 * * 1-5 cd /opt/zarko && python3 view.py --snapshot >> snapshot.log 2>&1
 ```
 
 Cron ima oskudan `PATH` i ne učitava shell profil — zato `cd` u mapu (`.env` se
@@ -589,7 +604,9 @@ Klijent na 429 čeka po `Retry-After` odnosno `x-ratelimit-reset`.
   odbija svaku koje nema u determinističkom izvoru.
 - **Agent ne pokreće `portfolio.py`** ni s jednom zastavicom — ta skripta drži
   kredencijale i pokreće je isključivo cron.
-- **Dashboard je read-only.** `view.py` ne piše u `portfolio.db`, `rules.yaml`
-  ni `.env`, ne zove CoinGecko/ZSE, i sluša samo na localhostu.
+- **Dashboard je read-only.** HTTP u `view.py` ne piše u `portfolio.db`,
+  `rules.yaml`, `.env` ni `view_history.db`, ne zove CoinGecko/ZSE, i sluša
+  samo na localhostu. Agregatnu povijest piše isključivo
+  `python3 view.py --snapshot` (cron).
 - **Pravila se mijenjaju svjesno**, s datumom u `LEARNING.md`, i nikad zato što
   se trenutno krše.

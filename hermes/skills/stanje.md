@@ -46,7 +46,11 @@ Uzorak oblika: `/opt/zarko/state/crypto.example.json` i `zse.example.json`.
 
 ## Kako zapisati
 
-Cijene izračunaš ti (CoinGecko, ZSE REST — kako već radiš). JSON sastaviš i zapišeš atomarno:
+Cijene izračunaš ti (CoinGecko, ZSE REST — kako već radiš). Smiješ zapisati
+**postojeći Hermesov holding oblik** (`current_value_eur`, `avg_price_eur`,
+`last_updated`) — adapter to mapira. Kontrakt s `value_eur` također radi.
+
+JSON zapiši atomarno:
 
 ```bash
 tmp=$(mktemp /opt/zarko/state/.tmp.XXXXXX)
@@ -62,5 +66,6 @@ mv "$tmp" /opt/zarko/state/crypto.json
 
 - **Ne čitaš** `/opt/zarko/.env` i **ne pokrećeš** `portfolio.py`.
 - **Ne zoveš** `view.py` da bi "provjerio" — to je Karlov UI, ne tvoj kanal.
+- **Ne pokrećeš** `view.py --snapshot` i **ne pišeš** u `view_history.db`.
 - **Ne pišeš** u `portfolio.db` ni `rules.yaml`.
 - Ako nemaš količine (holding), nemoj izmišljati pozicije. Bolje izostaviti datoteku nego upisati nulu koju nisi izmjerio.
