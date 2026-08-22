@@ -81,7 +81,9 @@ python3 rules.py kupnja TICKER IZNOS
 python3 rules.py pravila
 ```
 
-`rules.yaml` pišeš unaprijed, na svoje tickere i pragove. Zatečeno je primjer. Klasifikacija je po izdavatelju: all-world ETF nije "jedna pozicija od 25 %". Nesvrstan ticker je greška, ne pogađanje. `rules.py` izlazi s 1 ako ima kršenje, pa može u cron.
+Oba rade na **cijelom portfelju**: T212 iz `portfolio.db`, kripto i ZSE iz `state/*.json` — isti izvori kao dashboard. Redak `Izvori:` u izlazu kaže svježinu po izvoru (T212 snapshot, kripto/ZSE live). Digest uspoređuje sa zadnjim redom `view_history.db`.
+
+`rules.yaml` pišeš unaprijed, na svoje tickere i pragove. Zatečeno je primjer. Klasifikacija je po izdavatelju: all-world ETF nije "jedna pozicija od 25 %". Nesvrstan ticker je greška, ne pogađanje — ruši i provjeru i izvještaj, namjerno. `rules.py` izlazi s 1 ako ima kršenje, pa može u cron.
 
 ## Tko sprema što
 
