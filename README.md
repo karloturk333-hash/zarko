@@ -21,7 +21,7 @@ Bez vanjskih ovisnosti: čista standardna biblioteka. Radi na Pythonu 3.9+
 ```bash
 git clone <tvoj-repo> zarko && cd zarko
 cp .env.example .env && chmod 600 .env    # upiši ključ i secret
-python3 -m unittest discover -p "test_*.py"   # 137 testova, bez mreže
+python3 -m unittest discover -p "test_*.py"   # 138 testova, bez mreže
 python3 portfolio.py --check              # 1 poziv, provjeri kredencijale
 python3 portfolio.py --save               # snimi prvi snapshot
 python3 report.py status
