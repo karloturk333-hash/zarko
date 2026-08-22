@@ -178,9 +178,15 @@ vatrozid ostaje samo SSH; javni pristup ide tunelom, ne otvorenim portom.
 HTML: ukupni zbrojevi, pie alokacije po kategoriji (klik filtrira
 `?category=`), linija vrijednosti (debela = ukupno, tanje = T212 / kripto /
 ZSE), zatim filteri i tablica. Težine u pieu ostaju udio u cijelom portfelju.
-Dok nema nijednog `view.py --snapshot`, linija „ukupno“ je samo T212
+Dok serija ima samo jednu točku, kartica pokazuje iznos umjesto usamljene
+točke. Dok nema nijednog `view.py --snapshot`, linija „ukupno“ je samo T212
 (`snapshots.total_value_eur` u `portfolio.db`); poslije je zbroj sva tri
 izvora iz `view_history.db`. HTTP tu bazu ne piše.
+
+Stil je vendored Pico.css (`static/pico.min.css`, v2.1.1) plus
+`static/dashboard.css`. Isti `view.py` servira `GET /static/*.css` — nema
+CDN-a ni npm-a. Kategorije u UI imaju ljudske nazive (Široki ETF); filter
+i dalje ide slugom (`?category=siroki_etf`).
 
 Tri izvora, jedan `Position` oblik. Težina (`weight_pct_of_total`) se računa
 tek nakon spajanja — T212-ovih 50 % unutar T212-a nije 50 % cijelog portfelja.

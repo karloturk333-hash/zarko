@@ -62,6 +62,22 @@ CATEGORY_COLORS = {
     "cash": "#64748b",
 }
 
+# Ljudski nazivi u UI; filter i dalje ide slugom (?category=siroki_etf).
+CATEGORY_LABEL = {
+    "siroki_etf": "Široki ETF",
+    "dionica": "Dionica",
+    "sektorski_etf": "Sektorski ETF",
+    "roba": "Roba",
+    "kripto": "Kripto",
+    "cash": "Cash",
+}
+
+STATIC_DIR = Path(__file__).parent / "static"
+STATIC_FILES = {
+    "pico.min.css": "text/css; charset=utf-8",
+    "dashboard.css": "text/css; charset=utf-8",
+}
+
 # ── Agregacija ───────────────────────────────────────────────────────────────
 
 def assemble(db_path: str | Path, state_dir: str | Path,
@@ -235,6 +251,11 @@ def _qty(v: float | None) -> str:
 
 SOURCE_LABEL = {"t212": "T212", "crypto": "Kripto", "zse": "ZSE"}
 FRESHNESS_LABEL = {"snapshot": "snapshot", "live": "live"}
+FIRST_POINT_NOTE = "prva točka — linija nakon sljedećeg snapshot-a"
+
+
+def _category_label(category: str) -> str:
+    return CATEGORY_LABEL.get(category, category)
 
 ChartHistory = view_history.ChartHistory
 load_chart_history = view_history.load_chart_history
@@ -320,7 +341,7 @@ def render_pie_svg(allocation: list[Allocation],
             ox = 6 * math.cos(mid)
             oy = 6 * math.sin(mid)
             transform = f' transform="translate({ox:.2f} {oy:.2f})"'
-        label = e(f"{a.category} {_pct(a.weight_pct)} · {_eur(a.value_eur)}")
+        label = e(f"{_category_label(a.category)} {_pct(a.weight_pct)} · {_eur(a.value_eur)}")
         parts.append(
             f'<a href="{href}" data-category="{e(a.category)}">'
             f'<path class="{cls}" d="{d}"{transform}>'
@@ -345,7 +366,7 @@ def render_pie_legend(allocation: list[Allocation],
         rows.append(
             f'<a class="{cls}" href="{href}" data-category="{e(a.category)}">'
             f'<span class="swatch {_cat_class(a.category)}"></span>'
-            f'<span class="legend-name">{e(a.category)}</span>'
+            f'<span class="legend-name">{e(_category_label(a.category))}</span>'
             f'<span class="legend-pct">{e(_pct(a.weight_pct))}</span>'
             f'<span class="legend-eur">{e(_eur(a.value_eur))}</span>'
             f"</a>"
@@ -451,32 +472,52 @@ def _line_panel(points: list[tuple[str, float]], *, cls: str,
     return "".join(parts)
 
 
+def _line_head(label: str, points: list[tuple[str, float]]) -> str:
+    e = html.escape
+    last = _eur(points[-1][1]) if points else "n/d"
+    return (
+        f'<div class="line-head"><span>{e(label)}</span>'
+        f'<span class="num">{e(last)}</span></div>'
+    )
+
+
+def _series_block(label: str, points: list[tuple[str, float]], *, cls: str,
+                  t0: datetime, t1: datetime, width: int, height: int,
+                  stroke_width: float, y_ticks: bool, x_labels: bool) -> str:
+    e = html.escape
+    head = _line_head(label, points)
+    if len(points) < 2:
+        return (
+            f'<div class="line-card {e(cls)}">'
+            f"{head}"
+            f'<p class="muted first-point">{e(FIRST_POINT_NOTE)}</p>'
+            "</div>"
+        )
+    chart = _line_panel(
+        points, cls=cls, t0=t0, t1=t1, width=width, height=height,
+        stroke_width=stroke_width, y_ticks=y_ticks, x_labels=x_labels,
+    )
+    return f'<div class="line-panel">{head}{chart}</div>'
+
+
 def render_line_svg(history: ChartHistory) -> str:
     span = _time_span(history)
     if span is None:
         return ""
     t0, t1 = span
-    e = html.escape
-
-    def head(label: str, points: list[tuple[str, float]]) -> str:
-        last = _eur(points[-1][1]) if points else "n/d"
-        return (
-            f'<div class="line-head"><span>{e(label)}</span>'
-            f'<span class="num">{e(last)}</span></div>'
-        )
 
     parts = ['<div class="line-stack">']
     if history.ukupno:
         parts.append('<div class="line-main">')
-        parts.append(head("Ukupno", history.ukupno))
         parts.append(
-            _line_panel(
-                history.ukupno, cls="series-ukupno", t0=t0, t1=t1,
-                width=640, height=150, stroke_width=2.6,
+            _series_block(
+                "Ukupno", history.ukupno, cls="series-ukupno",
+                t0=t0, t1=t1, width=640, height=150, stroke_width=2.6,
                 y_ticks=True, x_labels=True,
             )
         )
         parts.append("</div>")
+    sparks = []
     for key, label, pts in (
         ("t212", "T212", history.t212),
         ("crypto", "Kripto", history.crypto),
@@ -484,128 +525,22 @@ def render_line_svg(history: ChartHistory) -> str:
     ):
         if not pts:
             continue
-        parts.append('<div class="spark">')
-        parts.append(head(label, pts))
-        parts.append(
-            _line_panel(
-                pts, cls=f"series-{key}", t0=t0, t1=t1,
-                width=640, height=52, stroke_width=1.35,
+        sparks.append(
+            _series_block(
+                label, pts, cls=f"series-{key}",
+                t0=t0, t1=t1, width=640, height=72, stroke_width=1.35,
                 y_ticks=False, x_labels=False,
             )
         )
+    if sparks:
+        parts.append('<div class="sources-grid">')
+        parts.extend(sparks)
         parts.append("</div>")
     parts.append("</div>")
     return "".join(parts)
 
 
 # ── HTML ─────────────────────────────────────────────────────────────────────
-
-DASHBOARD_CSS = """
-  :root { color-scheme: light dark; --fg: #1a1a1a; --muted: #666; --line: #ddd;
-           --bg: #fff; --fill: #1a1a1a; --pos: #0a7a32; --neg: #b42318; --err: #b42318;
-           --cat-siroki: #1e4d7b; --cat-dionica: #1d6b4f; --cat-sektor: #8a5a24;
-           --cat-roba: #6b4535; --cat-kripto: #4a4568; --cat-cash: #5c5c5c;
-           --cat-ostalo: #64748b;
-           --line-t212: #4a6a82; --line-crypto: #6b5f78; --line-zse: #5a6b58; }
-  @media (prefers-color-scheme: dark) {
-    :root { --fg: #eee; --muted: #aaa; --line: #333; --bg: #111; --fill: #ddd;
-            --cat-siroki: #8aa4c4; --cat-dionica: #7db396; --cat-sektor: #c4a066;
-            --cat-roba: #c49a86; --cat-kripto: #b0a8cc; --cat-cash: #9a9a9a;
-            --line-t212: #8aa8bc; --line-crypto: #b0a4b8; --line-zse: #9aaf96; }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0 auto; max-width: 1040px; padding: 1.25rem 1.25rem 2.5rem;
-         font: 16px/1.45 system-ui, sans-serif; color: var(--fg); background: var(--bg); }
-  @media (max-width: 640px) {
-    body { padding: 1rem 0.85rem 2rem; }
-  }
-  h1 { font-size: 1.35rem; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 0.35rem; }
-  h2 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
-       letter-spacing: 0.06em; color: var(--muted); margin: 1.6rem 0 0.7rem; }
-  .muted { color: var(--muted); font-size: 0.9rem; }
-  .badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.85rem 0; }
-  .badge { font-size: 0.85rem; border: 1px solid var(--line); padding: 0.3rem 0.55rem; }
-  .badge.live { border-color: var(--pos); }
-  .badge.missing { color: var(--muted); }
-  .error { color: var(--err); }
-  .totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.85rem 1rem; margin: 1rem 0 0.25rem; padding: 0.85rem 0;
-            border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-  @media (min-width: 640px) {
-    .totals { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  }
-  .totals .k { color: var(--muted); font-size: 0.85rem; }
-  .totals .v { font-variant-numeric: tabular-nums; font-size: 1.35rem; font-weight: 600; }
-  .alloc-body { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
-  @media (min-width: 720px) {
-    .alloc-body { flex-direction: row; align-items: center; gap: 1.75rem; }
-  }
-  .pie-wrap { width: min(100%, 15rem); flex: 0 0 auto; }
-  .pie { width: 100%; height: auto; display: block; }
-  .pie a { cursor: pointer; }
-  .pie .slice { stroke: var(--bg); stroke-width: 1.5; }
-  .pie .slice.active { stroke: var(--fg); stroke-width: 2.5; }
-  .legend { width: 100%; flex: 1 1 16rem; }
-  .legend-row { display: grid; grid-template-columns: 0.7rem minmax(6.5rem, 1fr) 4.2rem 7.5rem;
-                gap: 0.5rem; align-items: center; min-height: 2.2rem;
-                padding: 0.15rem 0.2rem; color: inherit; text-decoration: none;
-                border-bottom: 1px solid var(--line); }
-  .legend-row:last-child { border-bottom: 0; }
-  .legend-row.active { font-weight: 600; }
-  .legend-row.active .swatch { outline: 2px solid var(--fg); outline-offset: 1px; }
-  @media (max-width: 420px) {
-    .legend-row { grid-template-columns: 0.7rem 1fr 4.2rem; }
-    .legend-eur { display: none; }
-  }
-  .swatch { width: 0.7rem; height: 0.7rem; display: inline-block; }
-  .legend-pct, .legend-eur, .num { font-variant-numeric: tabular-nums; text-align: right; }
-  .legend-name { overflow: hidden; text-overflow: ellipsis; }
-  .cat-siroki_etf { fill: var(--cat-siroki); background: var(--cat-siroki); }
-  .cat-dionica { fill: var(--cat-dionica); background: var(--cat-dionica); }
-  .cat-sektorski_etf { fill: var(--cat-sektor); background: var(--cat-sektor); }
-  .cat-roba { fill: var(--cat-roba); background: var(--cat-roba); }
-  .cat-kripto { fill: var(--cat-kripto); background: var(--cat-kripto); }
-  .cat-cash { fill: var(--cat-cash); background: var(--cat-cash); }
-  .cat-ostalo { fill: var(--cat-ostalo); background: var(--cat-ostalo); }
-  .line-stack { display: flex; flex-direction: column; gap: 0.85rem; }
-  .line-head { display: flex; justify-content: space-between; gap: 0.75rem;
-               align-items: baseline; font-size: 0.85rem; margin: 0 0 0.2rem; }
-  .line-chart { width: 100%; height: auto; display: block; max-width: 100%; }
-  .line-chart .grid { stroke: var(--line); stroke-width: 1; }
-  .line-chart .axis { fill: var(--muted); font-size: 11px; }
-  .series-ukupno { stroke: var(--fg); fill: var(--fg); }
-  .series-t212 { stroke: var(--line-t212); fill: var(--line-t212); }
-  .series-crypto { stroke: var(--line-crypto); fill: var(--line-crypto); }
-  .series-zse { stroke: var(--line-zse); fill: var(--line-zse); }
-  .chart-caption { margin: 0.55rem 0 0; max-width: 42rem; }
-  a:focus-visible, select:focus-visible, button:focus-visible {
-    outline: 2px solid var(--fg); outline-offset: 2px; }
-  form { display: flex; flex-direction: column; gap: 0.75rem; margin: 1.25rem 0; }
-  @media (min-width: 640px) {
-    form { flex-direction: row; flex-wrap: wrap; align-items: end; }
-  }
-  label { font-size: 0.85rem; color: var(--muted); display: flex; flex-direction: column;
-          gap: 0.25rem; width: 100%; }
-  @media (min-width: 640px) {
-    label { width: auto; min-width: 9rem; }
-  }
-  select, button { font: inherit; min-height: 2.5rem; width: 100%;
-                   color: var(--fg); background: var(--bg); border: 1px solid var(--line);
-                   padding: 0.35rem 0.55rem; }
-  @media (min-width: 640px) {
-    select, button { width: auto; min-width: 8rem; }
-  }
-  button { cursor: pointer; }
-  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
-  th, td { border-bottom: 1px solid var(--line); padding: 0.55rem 0.45rem; text-align: left;
-           vertical-align: top; }
-  th { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-transform: uppercase; }
-  .pos { color: var(--pos); }
-  .neg { color: var(--neg); }
-  code { font-size: 0.95rem; }
-"""
-
 
 def render_html(view: PortfolioView, category: str | None = None,
                 source: str | None = None, currency: str | None = None,
@@ -617,19 +552,20 @@ def render_html(view: PortfolioView, category: str | None = None,
     sources = sorted({p.source for p in view.positions}) if view else []
     currencies = sorted({p.currency for p in view.positions if p.currency}) if view else []
 
-    options = []
-    def _select(name, current, values, labels=None):
+    def _select(name, current, values, labels=None, title=None):
         opts = ['<option value="">sve</option>']
         for v in values:
             label = (labels or {}).get(v, v)
             sel = " selected" if current == v else ""
             opts.append(f'<option value="{e(v)}"{sel}>{e(label)}</option>')
-        return (f'<label>{e(name)} <select name="{e(name)}">'
+        return (f'<label>{e(title or name)} <select name="{e(name)}">'
                 + "".join(opts) + "</select></label>")
 
-    options.append(_select("category", category, categories))
-    options.append(_select("source", source, sources, SOURCE_LABEL))
-    options.append(_select("currency", currency, currencies))
+    options = [
+        _select("category", category, categories, CATEGORY_LABEL, "Kategorija"),
+        _select("source", source, sources, SOURCE_LABEL, "Izvor"),
+        _select("currency", currency, currencies, title="Valuta"),
+    ]
 
     badges = []
     if view:
@@ -652,10 +588,10 @@ def render_html(view: PortfolioView, category: str | None = None,
     alloc_block = ""
     if pie or legend:
         alloc_block = (
-            '<section class="alloc"><h2>Alokacija</h2>'
+            '<article class="alloc"><h2>Alokacija</h2>'
             f'<div class="alloc-body"><div class="pie-wrap">{pie}</div>{legend}</div>'
             '<p class="muted chart-caption">Težine su udio u cijelom portfelju. '
-            "Klik na komad ili legendu filtrira tablicu.</p></section>"
+            "Klik na komad ili legendu filtrira tablicu.</p></article>"
         )
 
     hist = history or ChartHistory()
@@ -669,15 +605,15 @@ def render_html(view: PortfolioView, category: str | None = None,
         else:
             caption = "Ukupno = T212 + kripto + ZSE."
         line_block = (
-            '<section class="history"><h2>Vrijednost</h2>'
+            '<article class="history"><h2>Vrijednost</h2>'
             f'<div class="line-wrap">{line}</div>'
-            f'<p class="muted chart-caption">{e(caption)}</p></section>'
+            f'<p class="muted chart-caption">{e(caption)}</p></article>'
         )
     else:
         line_block = (
-            '<section class="history"><h2>Vrijednost</h2>'
+            '<article class="history"><h2>Vrijednost</h2>'
             '<p class="muted chart-caption">Nema povijesti. T212 cron i '
-            "python3 view.py --snapshot pune ovaj graf.</p></section>"
+            "python3 view.py --snapshot pune ovaj graf.</p></article>"
         )
 
     body_rows = []
@@ -687,7 +623,7 @@ def render_html(view: PortfolioView, category: str | None = None,
             "<tr>"
             f"<td class=\"num\">{e(_pct(p.weight_pct_of_total))}</td>"
             f"<td><code>{e(p.ticker)}</code><div class=\"muted\">{e(p.name)}</div></td>"
-            f"<td>{e(p.category)}</td>"
+            f"<td>{e(_category_label(p.category))}</td>"
             f"<td>{e(SOURCE_LABEL.get(p.source, p.source))}</td>"
             f"<td>{e(p.currency)}</td>"
             f"<td class=\"num\">{e(_qty(p.quantity))}</td>"
@@ -704,12 +640,14 @@ def render_html(view: PortfolioView, category: str | None = None,
     totals = ""
     if view:
         totals = f"""
-<section class="totals">
-  <div><div class="k">Ukupno</div><div class="v">{e(_eur(view.total_value_eur))}</div></div>
-  <div><div class="k">Pozicije</div><div class="v">{e(_eur(view.positions_value_eur))}</div></div>
-  <div><div class="k">Cash</div><div class="v">{e(_eur(view.cash_eur))}</div></div>
-  <div><div class="k">Nerealizirano</div><div class="v">{e(_signed(view.total_pnl_eur))}</div></div>
-</section>"""
+<article class="metrics-card">
+  <div class="metrics">
+    <div class="metric metric-total"><div class="k">Ukupno</div><div class="v">{e(_eur(view.total_value_eur))}</div></div>
+    <div class="metric"><div class="k">Pozicije</div><div class="v">{e(_eur(view.positions_value_eur))}</div></div>
+    <div class="metric"><div class="k">Cash</div><div class="v">{e(_eur(view.cash_eur))}</div></div>
+    <div class="metric"><div class="k">Nerealizirano</div><div class="v">{e(_signed(view.total_pnl_eur))}</div></div>
+  </div>
+</article>"""
 
     return f"""<!DOCTYPE html>
 <html lang="hr">
@@ -717,38 +655,59 @@ def render_html(view: PortfolioView, category: str | None = None,
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Portfelj</title>
-<style>
-{DASHBOARD_CSS}
-</style>
+<link rel="stylesheet" href="/static/pico.min.css">
+<link rel="stylesheet" href="/static/dashboard.css">
 </head>
 <body>
-<h1>Portfelj</h1>
-<p class="muted">Read-only · težine su udio u cijelom portfelju (uključujući cash)</p>
-{err_block}
-<div class="badges">{"".join(badges)}</div>
+<main class="container">
+<header class="dash-header">
+  <hgroup>
+    <h1>Portfelj</h1>
+    <p>Read-only · težine su udio u cijelom portfelju (uključujući cash)</p>
+  </hgroup>
+  {err_block}
+  <div class="badges">{"".join(badges)}</div>
+</header>
 {totals}
 {alloc_block}
 {line_block}
-<form method="get">
-  {"".join(options)}
-  <button type="submit">Filtriraj</button>
-</form>
-<div class="table-wrap">
-<table>
-<thead><tr>
-  <th>%</th><th>Pozicija</th><th>Kategorija</th><th>Izvor</th><th>Valuta</th>
-  <th class="num">Količina</th><th class="num">Vrijednost</th><th class="num">Trošak</th>
-  <th class="num">P&amp;L</th><th class="num">P&amp;L %</th>
-</tr></thead>
-<tbody>{"".join(body_rows)}</tbody>
-</table>
-</div>
+<article class="holdings">
+  <h2>Pozicije</h2>
+  <form class="filters" method="get">
+    {"".join(options)}
+    <button type="submit">Filtriraj</button>
+  </form>
+  <div class="table-wrap">
+  <table class="striped">
+  <thead><tr>
+    <th>%</th><th>Pozicija</th><th>Kategorija</th><th>Izvor</th><th>Valuta</th>
+    <th class="num">Količina</th><th class="num">Vrijednost</th><th class="num">Trošak</th>
+    <th class="num">P&amp;L</th><th class="num">P&amp;L %</th>
+  </tr></thead>
+  <tbody>{"".join(body_rows)}</tbody>
+  </table>
+  </div>
+</article>
+</main>
 </body>
 </html>
 """
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────────────
+
+def static_response(url_path: str) -> tuple[int, bytes, str] | None:
+    """Serviraj samo allowlist iz static/. None = nije /static/ zahtjev."""
+    if not url_path.startswith("/static/"):
+        return None
+    name = url_path[len("/static/"):]
+    if name not in STATIC_FILES:
+        return 404, b"nema", "text/plain; charset=utf-8"
+    target = (STATIC_DIR / name).resolve()
+    if target.parent != STATIC_DIR.resolve() or not target.is_file():
+        return 404, b"nema", "text/plain; charset=utf-8"
+    return 200, target.read_bytes(), STATIC_FILES[name]
+
 
 def make_handler(db_path: Path, state_dir: Path, rules_path: Path,
                  history_path: Path | None = None):
@@ -769,6 +728,11 @@ def make_handler(db_path: Path, state_dir: Path, rules_path: Path,
         def do_GET(self) -> None:  # noqa: N802
             # Read-only: nikad --snapshot, nikad pisanje u *.db / rules.yaml / .env.
             parsed = urlparse(self.path)
+            static = static_response(parsed.path)
+            if static is not None:
+                code, body, ctype = static
+                self._send(code, body, ctype)
+                return
             if parsed.path not in ("/", "/json", "/health"):
                 self._send(404, b"nema", "text/plain; charset=utf-8")
                 return

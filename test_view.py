@@ -324,6 +324,10 @@ class TestFilterAndHtml(Fixture):
         self.assertIn('name="category"', page)
         self.assertIn('name="source"', page)
         self.assertIn('name="currency"', page)
+        self.assertIn("/static/pico.min.css", page)
+        self.assertIn("/static/dashboard.css", page)
+        self.assertIn("Široki ETF", page)
+        self.assertIn("pico", page.lower())
 
     def test_html_filter(self):
         v = view.assemble(self.db_path, self.state, PRAVILA)
@@ -428,6 +432,7 @@ class TestChartsAndHistory(Fixture):
         self.assertIn("series-crypto", page)
         self.assertIn("series-zse", page)
         self.assertIn("<polyline", page)
+        self.assertIn("sources-grid", page)
         self.assertIn("T212 + kripto + ZSE", page)
 
     def test_linija_caption_samo_t212(self):
@@ -440,6 +445,23 @@ class TestChartsAndHistory(Fixture):
         self.assertIn("samo T212", page)
         self.assertIn("series-ukupno", page)
         self.assertIn("series-t212", page)
+        self.assertIn("prva točka — linija nakon sljedećeg snapshot-a", page)
+        self.assertNotIn("<polyline", page)
+
+    def test_jedna_tocka_je_kartica(self):
+        v = view.assemble(self.db_path, self.state, PRAVILA)
+        ch = view.ChartHistory(
+            ukupno=[("2026-08-22T20:20:00Z", 1200.0)],
+            t212=[("2026-08-22T20:15:00Z", 1000.0)],
+            crypto=[("2026-08-22T20:20:00Z", 200.0)],
+            zse=[],
+            ukupno_je_samo_t212=False,
+        )
+        page = view.render_html(v, history=ch)
+        self.assertIn("prva točka — linija nakon sljedećeg snapshot-a", page)
+        self.assertIn("line-card", page)
+        self.assertIn("sources-grid", page)
+        self.assertNotIn("<polyline", page)
 
 
 class TestHttp(Fixture):
@@ -490,6 +512,25 @@ class TestHttp(Fixture):
             c.request("POST", "/")
             self.assertEqual(c.getresponse().status, 405)
             self.assertFalse(hist.exists())
+
+            c.request("GET", "/static/pico.min.css")
+            res = c.getresponse()
+            self.assertEqual(res.status, 200)
+            pico = res.read()
+            self.assertIn(b"Pico CSS", pico)
+            self.assertIn("text/css", res.getheader("Content-Type", ""))
+
+            c.request("GET", "/static/dashboard.css")
+            res = c.getresponse()
+            self.assertEqual(res.status, 200)
+            dash = res.read()
+            self.assertIn(b".metrics", dash)
+            self.assertIn("text/css", res.getheader("Content-Type", ""))
+
+            c.request("GET", "/static/../view.py")
+            self.assertEqual(c.getresponse().status, 404)
+            c.request("GET", "/static/nema.css")
+            self.assertEqual(c.getresponse().status, 404)
 
             c.request("GET", "/tajne")
             self.assertEqual(c.getresponse().status, 404)
