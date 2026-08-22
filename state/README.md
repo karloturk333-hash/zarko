@@ -36,7 +36,10 @@ Hermes piše ovamo, zarko samo čita. Ista granica kao `teze/`.
 - `source` mora točno odgovarati imenu datoteke (`crypto` / `zse`)
 - `freshness` je `live` ili `snapshot`
 - `as_of` je ISO-8601
-- `value_eur` je obavezan; `cost_eur` / `pnl_eur` / `quantity` smiju biti `null`
+- `value_eur` **ili** Hermesovo `current_value_eur`
+- `cost_eur`, ili `invested_eur`, ili `quantity × avg_price_eur`
+- `as_of` **ili** `last_updated` (samo datum `YYYY-MM-DD` je dovoljan)
+- slobodni `source` tekst (npr. "Trading212 app...") je u redu; `"zse"` u `crypto.json` nije
 - svaki `ticker` mora biti u `klasifikacija:` u `rules.yaml` (nesvrstan = greška, ne pogodak)
 
 Nedostajuća datoteka: taj izvor je prazan, T212 i dalje radi.
