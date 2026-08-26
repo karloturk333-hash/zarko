@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Testovi za validaciju LLM izlaza.
 
-    python3 -m unittest test_llm_output -v
+    python3 -m unittest tests.test_llm_output -v
 """
 
 from __future__ import annotations

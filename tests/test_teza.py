@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Testovi zapisnika teza.
 
-    python3 -m unittest test_teza -v
+    python3 -m unittest tests.test_teza -v
 """
 
 from __future__ import annotations

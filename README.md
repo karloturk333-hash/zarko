@@ -10,7 +10,7 @@ Python 3.9+, samo standardna biblioteka. Testovi ne diraju mrežu.
 ```bash
 git clone <tvoj-repo> zarko && cd zarko
 cp .env.example .env && chmod 600 .env
-python3 -m unittest discover -p "test_*.py"
+python3 -m unittest discover -s tests -t . -p "test_*.py"
 python3 portfolio.py --check
 python3 portfolio.py --save
 python3 report.py status
@@ -64,7 +64,9 @@ SELECT * FROM v_latest_allocation;
 | `portfolio.py` | jedini dirne T212 ključ |
 | `t212.py` / `fx_conversion.py` / `db.py` | dohvat, EUR, SQLite |
 | `report.py` / `rules.py` | izvještaj i pragovi, bez ključa |
-| `view.py` | dashboard; `--snapshot` piše `view_history.db` |
+| `view.py` | assemble/merge; `--json`, `--snapshot`, `serve` |
+| `web/` | HTML, HTTP, CSS (`web/static/`) |
+| `tests/` | unittest, bez mreže |
 | `t212_adapter.py` `crypto_adapter.py` `zse_adapter.py` | u isti `Position` oblik |
 | `teza.py` | zapisnik tvrdnji |
 | `hermes/skills/portfelj.md` | što agent smije u chatu |
@@ -106,7 +108,7 @@ python3 view.py serve                  # http://127.0.0.1:8787
 python3 view.py --snapshot
 ```
 
-Bind je localhost. `0.0.0.0` nije za javni internet. CSS je u `static/` (Pico kao baza + `dashboard.css` koji nosi izgled), isti proces, bez CDN-a i bez Google Fontsa. Izvor koji je star ili nedostaje dobije badge — brojka se ne skriva.
+Bind je localhost. `0.0.0.0` nije za javni internet. CSS je u `web/static/` (Pico kao baza + `dashboard.css` koji nosi izgled), isti proces, bez CDN-a i bez Google Fontsa. Izvor koji je star ili nedostaje dobije badge — brojka se ne skriva.
 
 ```bash
 sudo mkdir -p /opt/zarko/state
@@ -148,7 +150,7 @@ Host github-zarko
 ```bash
 git clone git@github-zarko:<korisnik>/<repo>.git /opt/zarko
 cd /opt/zarko && cp .env.example .env && chmod 600 .env && nano .env
-python3 -m unittest discover -p "test_*.py" && python3 portfolio.py --check
+python3 -m unittest discover -s tests -t . -p "test_*.py" && python3 portfolio.py --check
 ```
 
 Ili `./deploy.sh korisnik@server` (rsync, `.env` i `*.db` se ne prenose). Status 23 na `state/` je u redu: tu mapu drži hermes.

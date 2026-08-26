@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Testovi FX normalizacije i spremanja snapshota. Pokretanje:
 
-    python3 -m unittest test_fx -v
+    python3 -m unittest tests.test_fx -v
 
 Fiksni tečajevi, bez mreže — deterministično.
 Oblici odgovora prate službeni T212 OpenAPI spec (AccountSummary, Position).

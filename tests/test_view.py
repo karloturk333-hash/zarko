@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Testovi unificiranog pogleda: adapteri, težine, filteri, HTML. Bez mreže.
 
-    python3 -m unittest test_view -v
+    python3 -m unittest tests.test_view -v
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import view
 import zse_adapter
 from fx_conversion import FxConverter
 from position import RawPosition, SourceResult, ViewGreska
-from test_fx import position as t212_position
+from tests.test_fx import position as t212_position
 
 PRAVILA = {
     "osnovica": "ukupna_vrijednost",
@@ -246,7 +246,7 @@ class TestJsonAdapter(Fixture):
         self.assertEqual(by["ZSE_7CRO_GENIUS"].pnl_eur, 7.20)
 
     def test_primjeri_u_repu_su_valjani(self):
-        root = Path(__file__).parent / "state"
+        root = Path(__file__).resolve().parents[1] / "state"
         crypto = crypto_adapter.load(root / "crypto.example.json")
         zse = zse_adapter.load(root / "zse.example.json")
         self.assertTrue(crypto.available)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Testovi izvještaja o cijelom portfelju (report.collect_view). Bez mreže.
 
-    python3 -m unittest test_report -v
+    python3 -m unittest tests.test_report -v
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import unittest
 import report
 import view
 from position import ViewGreska
-from test_view import PRAVILA, Fixture, crypto_payload
+from tests.test_view import PRAVILA, Fixture, crypto_payload
 
 
 class TestCollectView(Fixture):

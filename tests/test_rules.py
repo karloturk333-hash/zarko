@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Testovi rules enginea i mini-YAML parsera.
 
-    python3 -m unittest test_rules -v
+    python3 -m unittest tests.test_rules -v
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import unittest
 
 import miniyaml
 import rules
-import test_view
+from tests import test_view
 from rules import PravilaGreska
 
 PRAVILA = {
